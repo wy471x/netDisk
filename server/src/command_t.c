@@ -94,7 +94,7 @@ int deal_cd(int sockfd,int* curdirnum,char* username){
             int sig = 0;
             send(sockfd,&sig,4,0);
             char* pathname = (char*)calloc(30,sizeof(char));
-            db_namequery_userPath(pathnum,&pathname);
+            db_namequery_userPath(pathnum,pathname);
             *curdirnum = pathnum;
             send(sockfd,&*curdirnum,4,0);
             sprintf(curPath,"%s:~/%s$",username,pathname);
@@ -148,34 +148,125 @@ int deal_remove(int sockfd,char* filename){
     return 0 ;
 }
 //---------------------------uploads命令处理-----------------
-int deal_upload(int sockfd,char* filename){
-    send(sockfd,"Success",7,0);
-    int fd = open(filename,O_RDWR|O_CREAT,0666);
+void deal_upload(int socketfd){
+    printf("puts newFd = %d\n",socketfd);
+    char token[50] = {0};
+    char md5[50] = {0};
     int dataLen;
-    off_t filesize;
-    recv_file(sockfd,&dataLen,4);
-    recv_file(sockfd,&filesize,dataLen);
-    printf("received filesize：%ld\n",filesize);
-    ftruncate(fd,filesize);
-    char* pMap = (char*)mmap(NULL,filesize,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-    ERROR_CHECK(pMap,(char*)-1,"mmap");
-    recv_file(sockfd,pMap,filesize);
-    int ret =  munmap(pMap,filesize);
-    ERROR_CHECK(ret,-1,"munmap");
-    close(fd);
-    //close(sockfd)子进程将套接字关闭导致返回 bad file descriptor错误
-    return 0;
+    //接收token
+    recv(socketfd,&dataLen,4,0);
+    recv(socketfd,token,dataLen,0);
+    printf("%s\n",token);
+    char curdirnum[50]={0};
+    //接收当前所处的目录
+    recv(socketfd,&dataLen,4,0);
+    recv(socketfd,curdirnum,dataLen,0);
+    printf("%s\n",curdirnum);
+    //接收MD5
+    recv(socketfd,&dataLen,4,0);
+    recv(socketfd,md5,dataLen,0);
+    printf("%s\n",md5);
+    //查询token的用户
+    if(db_usernamequery_userRequest(token) < 0){
+        return;
+    }
+    printf("1111\n");
+    char fname[30] ={0};
+    int fsize = 0;
+    //当文件名在本目录下不存在且该文件的内容即md5也不存在时
+    if(db_md5query_userPath(md5,fname) < 0)
+    {
+        printf("222\n");
+        send(socketfd,"No",2,0);
+        char filename[20] = {0};
+        recv(socketfd,&dataLen,4,0);
+        recv(socketfd,filename,dataLen,0);
+        printf("%s\n",filename);
+        recv(socketfd,&dataLen,4,0);
+        recv(socketfd,&fsize,4,0);
+        printf("%d\n",fsize);
+        //使用mmap技术接收文件内容
+        int fd;
+        fd = open(filename,O_RDWR|O_CREAT,0666);
+        if(fsize >= 1073741824){
+        ftruncate(fd,fsize);
+        char *pMap = (char*)mmap(NULL,fsize,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+        printf("33333\n");
+        recv_file(socketfd,pMap,fsize);
+        printf("mid3333\n");
+        munmap(pMap,fsize);
+        printf("3333\n");
+        }else{
+            int downLoadSize = 0;
+            char buf[1000] = {0};
+            while(1){
+                recv_file(socketfd,&dataLen,4);
+                if(dataLen > 0){
+                write(fd,buf,dataLen);
+                downLoadSize += dataLen;
+                }else{
+                    break;
+                }
+        }
+        }
+        char pfname[30] = {0};
+        db_dirnamequery_userPath(atoi(curdirnum),pfname);
+        printf("**%s\n",pfname);
+        if(db_fexistquery_userPath(atoi(curdirnum),filename) < 0){
+            send(socketfd,"NE",2,0);
+            printf("%d %s %s %s %d %s\n",atoi(curdirnum),filename,pfname,md5,fsize,filename);
+            db_allinsert_userPath(atoi(curdirnum),filename,pfname,md5,fsize\
+                                  ,filename);
+        }else{
+            send(socketfd,"E",1,0);
+            char newfname[20] = {0};
+            recv(socketfd,&dataLen,4,0);
+            recv(socketfd,newfname,dataLen,0);
+            db_allinsert_userPath(atoi(curdirnum),filename,pfname,md5,fsize\
+                                  ,newfname);
+        }
+        close(fd);
+    }
+    else
+    {
+        send(socketfd,"Yes",3,0);
+        char filename[30] = {0};
+        recv(socketfd,&dataLen,4,0);
+        recv(socketfd,filename,dataLen,0);
+        if(db_fexistquery_userPath(atoi(curdirnum),filename) < 0){
+            char pfname[30] = {0};
+            db_namequery_userPath(atoi(curdirnum),pfname); 
+            printf("%d %s %s %s %d %s\n",atoi(curdirnum),fname,pfname,md5,fsize,filename);
+            db_allinsert_userPath(atoi(curdirnum),filename,pfname,md5,fsize\
+                                  ,filename);
+        }
+    }
+    close(socketfd);
 }
 //----------------------------downloads命令处理-------------------
-int deal_download(int sockfd,char* filename){
-    int fd = open(filename,O_RDONLY);
-    if(fd == -1){
-        perror("open");
-        send(sockfd,"No such file or directory",25,0);
-        return -1;
-    }else{
-        send(sockfd,"Success",7,0);
-        send_file(sockfd,filename);
-        return 0;    
+void deal_download(int socketfd){
+    printf("newFd = %d\n",socketfd);   
+    int dataLen;
+    char token[50] = {0};
+    recv(socketfd,&dataLen,4,0);
+    recv(socketfd,token,dataLen,0);
+    if(db_usernamequery_userRequest(token) < 0){
+        return;
     }
+    char filename[30] = {0};
+    recv(socketfd,&dataLen,4,0);
+    recv(socketfd,filename,dataLen,0);
+    char curdir[30] = {0};
+    recv(socketfd,&dataLen,4,0);
+    recv(socketfd,curdir,dataLen,0);
+    char afname[50] = {0};
+    if(db_afnamequery_userPath(atoi(curdir),afname,filename) < 0)
+    {
+        send(socketfd,"No such file!",strlen("No such file!"),0);
+    }
+    else
+    {
+        send_file(socketfd,afname);
+    }
+    close(socketfd);
 }

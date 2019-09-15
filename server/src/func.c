@@ -2,6 +2,7 @@
 //#define del_blank(pos,str){ while(str[pos]!='\0'&&(str[pos] == ' '|| str[pos] == '\t')){ pos++; }}
 //#define get_args(argv,pos,str){ int j = 0; while(str[pos]!='\0'&&str[pos]!='\t'&&str[pos]!=' ') argv[j++] = str[pos++];}
 #define strLen 100
+#define STR_LEN 10
 //连接初始化
 int tcp_init(int* sFd,char* ip,char* port){
   int socketFd; 
@@ -22,6 +23,24 @@ int tcp_init(int* sFd,char* ip,char* port){
   listen(socketFd,10);
   *sFd = socketFd;
   return 0;
+}
+void GenerateStr(char* str){
+    int i,flag;
+    srand(time(NULL));
+    for(i = 0;i < STR_LEN;++i){
+        flag = rand()%3;
+        switch(flag){
+        case 0 :
+            str[i] = rand()%26 + 'a';
+            break;
+       case 1:
+            str[i] = rand()%26 + 'A';
+            break;
+       case 2:
+            str[i] = rand()%10 + '0';
+            break;
+        }
+    }
 }
 //命令与参数分离
 //int separation(char *str, command_t* cmd){

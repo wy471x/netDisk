@@ -1,4 +1,13 @@
 #include "func.h"
+#include "factory.h"
+int epollAdd(int epfd,int fd){
+    struct epoll_event event;
+    event.events = EPOLLIN;
+    event.data.fd = fd;
+    int ret = epoll_ctl(epfd,EPOLL_CTL_ADD,fd,&event);
+    ERROR_CHECK(ret,-1,"epoll_ctl");
+    return 0;
+}
 int main(int argc,char* argv[])
 {
     //-----------配置文件获取IP和PORT----------
@@ -18,73 +27,45 @@ int main(int argc,char* argv[])
         perror("fscanf");
     }
     printf("%s\n",port);
+    int threadNum ,capacity;
+    ret = fscanf(fp,"%d",&threadNum);
+    if(ret < 0){
+        perror("fscanf");
+        return -1;
+    }
+    ret = fscanf(fp,"%d",&capacity);
+    if(ret < 0){
+        perror("fscanf");
+        return -1;
+    }
     //---------------连接与通信------------
     int socketFd;
+    Factory_t threadMainData;
+    factoryInit(&threadMainData,threadNum,capacity);
+    factoryStart(&threadMainData);
     ret = tcp_init(&socketFd,ip,port);
     ERROR_CHECK(ret,-1,"tcp_init");
     int newFd;
+    pQue_t pq = &threadMainData.que;
+    pNode_t pNew;
+    int epfd = epoll_create(1);
+    struct epoll_event evs[10];
+    epollAdd(epfd,socketFd);  
+    int readyFdCount,i; 
     while(1){
-        char* curname = (char*)calloc(20,sizeof(char));
-        int rootnum ;
-        //------------------登录与注册处理------------------
-        newFd =accept(socketFd,NULL,NULL);
-        recv(newFd,&ret,sizeof(ret),0);
-label:
-        // printf("%d\n",ret);
-        if(ret == 1){
-            deal_Login(newFd,&curname,&rootnum);
-        }else{
-            deal_Register(newFd);
-            recv(newFd,&ret,4,0);
-            goto label;
-        }
-        printf("newFd = %d\n",newFd);
-        int curdirnum = 0;
-        char rootname[MAXSIZE] = {0};
-        strcpy(rootname,"root");
-        curdirnum = db_numquery_userPath(rootnum,curname,rootname);
-        printf("%d\n",curdirnum);
-        send(newFd,&curdirnum,4,0);
-        if(!fork()) {
-            while(1){
-                int dataLen = 0 ;
-                char buf[MAXSIZE] = {0};
-                recv(newFd,&dataLen,4,0);
-                recv(newFd,buf,dataLen,0);
-                ERROR_CHECK(ret,-1,"recv");
-                printf("%d %s\n",dataLen,buf);
-                if(strcmp(buf,"cd") == 0){
-                      deal_cd(newFd,&curdirnum,curname);
-                       continue;
-                }
-                printf("%d\n",curdirnum);
-                if(strcmp(buf,"ls") == 0){
-                    printf("%d\n",curdirnum);
-                    deal_ls(newFd,curdirnum);
-                    continue;
-                }
-                //                 if(strstr(buf,"rm") == buf){
-                //                       char filename[MAXSIZE] = {0};
-                //                    if(buf[2] == '\0') strcpy(filename,"");
-                //                    else{
-                //                        strcpy(filename,&buf[2]);
-                //                    }
-                //                    if(deal_remove(newFd,filename) < 0) continue;
-                //                }
-                //                if(strstr(buf,"puts") == buf){
-                //                    char filename[MAXSIZE] = {0};
-                //                    strcpy(filename,&buf[4]);
-                //                    if(deal_upload(newFd,filename) < 0) continue;
-                //                }
-                //                if(strstr(buf,"gets") == buf){
-                //                    char filename[MAXSIZE] ={0};
-                //                    // printf("%s",buf);
-                //                    strcpy(filename,&buf[4]);
-                //                    //  printf("%s\n",filename);
-                //                    if(deal_download(newFd,filename) < 0) continue;
-                //                }
+        readyFdCount = epoll_wait(epfd,evs,10,-1);  
+        //检查是否有可读事件
+        for(i = 0; i < readyFdCount; ++i){
+            if(evs[i].data.fd == socketFd){
+                newFd = accept(socketFd,NULL,NULL);
+                pNew = (pNode_t)calloc(1,sizeof(Node_t));
+                pNew->newFd = newFd;
+                pthread_mutex_lock(&pq->mutex);
+                queInsert(pq,pNew);
+                pthread_mutex_unlock(&pq->mutex);
+                pthread_cond_signal(&threadMainData.cond);
             }
-        }else close(newFd);
+        }
     }
     return 0;
 }

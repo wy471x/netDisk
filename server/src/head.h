@@ -1,6 +1,6 @@
 #ifndef __HEAD_H__
 #define __HEAD_H__
-#define _GNU_SOURCE
+#define _GNU_SOURCE 
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
@@ -29,7 +29,6 @@
 #include<netdb.h>
 #include<sys/epoll.h>
 #include<sys/sendfile.h>
-#include<aio.h>
 #include<mysql/mysql.h>
 #define ARGS_CHECK(argc,num){if(argc != num){printf("error args\n"); return -1;}}
 #define ERROR_CHECK(ret,retval,funcName){if(ret == retval){perror(funcName);return -1;}}

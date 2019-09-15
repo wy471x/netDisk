@@ -4,7 +4,7 @@ ELF:=server
 CC:=gcc
 CFLAGS:=-Wall -I../include -I /usr/include/mysql/ -lmysqlclient -lcrypt
 $(ELF):$(OBJS)
-	gcc $^ -o $@ $(CFLAGS) $(MYSQL)
+	gcc $^ -o $@ $(CFLAGS) $(MYSQL) -lpthread
 .PYONY:clean
 clean:
 	rm -rf $(OBJS) $(ELF)

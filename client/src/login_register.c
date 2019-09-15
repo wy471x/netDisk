@@ -44,12 +44,6 @@ label2:
     int ret;
     recv(sockfd,&ret,sizeof(ret),0);
     if(ret == 0){
-        data.dataLen = strlen("Register");
-        strcpy(data.buf,"Register");
-        send(sockfd,&data,4+data.dataLen,0);
-        data.dataLen = strlen(username);
-        strcpy(data.buf,username);
-        send(sockfd,&data,4+data.dataLen,0);
         printf("Success Register!\n");
         printf("Do you want to login?(Y(y)/N(n)):");
         scanf("%c",&tmp);
@@ -74,7 +68,7 @@ label2:
     return 0;
 }
 
-int Login_T(int sockfd,char** curUser,int* curdirnum)
+int Login_T(int sockfd,char** curUser,int* curdirnum,char *token)
 {
     train_t data;
     char username[20];
@@ -86,28 +80,17 @@ label:
     data.dataLen = strlen(username);
     strcpy(data.buf,username);
     send(sockfd,&data,4+data.dataLen,0);
-    // printf("%s\n",data.buf);
     char passwd[20] = {0};
     printf("\npassword:");
     fgets(passwd,sizeof(passwd),stdin);
     passwd[strlen(passwd) - 1] = '\0';
     char tmp = 0;
-    // char* ressalt = (char*)calloc(300,sizeof(char));
-    // char* rescrypt = (char*)calloc(300,sizeof(char));
-    // printf("%s %s\n",username,passwd);
-    // int ret =  db_query_userInfo(username,&ressalt,&rescrypt);
-    //  printf("%s %s\n",ressalt,rescrypt);
     int ret ;
     recv(sockfd,&ret,4,0);
-   // printf("ret = %d\n",ret);
     if(ret == -1){
         printf("Username doesn't exist!\n");
         printf("Do you want to login again?(Y(y)/N(n)):");
         scanf("%c",&tmp);
-        //        free(ressalt);
-        //        free(rescrypt);
-        //        ressalt = NULL;
-        //        rescrypt = NULL;
         getchar();
         if( tmp == 'Y'||tmp == 'y' ){
             int sig = 1;
@@ -124,7 +107,6 @@ label:
         recv(sockfd,ressalt,dataLen,0);
         recv(sockfd,&dataLen,4,0);
         recv(sockfd,rescrypt,dataLen,0);
-  //      printf("%s %s\n",ressalt,rescrypt);
         if(strcmp(rescrypt,crypt(passwd,ressalt)) == 0){
             strcpy(*curUser,username);
             int sig = 0;
@@ -135,9 +117,13 @@ label:
             data.dataLen =strlen(username);
             strcpy(data.buf,username);
             send(sockfd,&data,4+data.dataLen,0);
-            int dirnum;
-            recv(sockfd,&dirnum,4,0);
-            *curdirnum = dirnum;
+            recv(sockfd,&dataLen,4,0);
+            recv(sockfd,token,dataLen,0);
+            printf("%s\n",token);
+            int num;
+            recv(sockfd,&num,4,0);
+            *curdirnum = num;
+            printf("%d\n",num);
         }else{
             printf("Password is wrong!\n");
             printf("Do you want to login again?(Y(y)/N(n)):");
@@ -153,8 +139,4 @@ label:
         }
         return 0;
     }
-    // free(ressalt);
-    // free(rescrypt);
-    //  ressalt = NULL;
-    // rescrypt = NULL;
 }

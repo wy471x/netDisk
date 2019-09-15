@@ -1,11 +1,12 @@
-#include "func.h"
+#include"func.h"
+#include<shadow.h>
 
 void deal_Register(int sockfd)
 {
     char passwd[20] = {0};
     char username[20] = {0};
     char salt[30] = {0};
-    char crypt[50] = {0};
+    char recvcrypt[50] = {0};
     int dataLen = 0;
     recv(sockfd,&dataLen,4,0);
     recv(sockfd,username,dataLen,0);
@@ -14,23 +15,17 @@ void deal_Register(int sockfd)
     recv(sockfd,&dataLen,4,0);
     recv(sockfd,salt,dataLen,0);
     recv(sockfd,&dataLen,4,0);
-    recv(sockfd,crypt,dataLen,0);
-    int ret = db_insert_userInfo(username,salt,crypt,passwd);
+    recv(sockfd,recvcrypt,dataLen,0);
+    int ret = db_insert_userInfo(username,salt,recvcrypt,passwd);
     if(ret == 0){
-        char request[10] = {0};
         send(sockfd,&ret,4,0);
-        recv(sockfd,&dataLen,4,0);
-        recv(sockfd,request,dataLen,0);
-        recv(sockfd,&dataLen,4,0);
-        recv(sockfd,username,dataLen,0);
-        db_insert_userRequest(username,request);
         db_insert_userPath(username);
     }else{
         send(sockfd,&ret,4,0);
     } 
 }
 
-void deal_Login(int sockfd,char** name,int* dirnum){
+void deal_Login(int sockfd,char* name,int* dirnum){
     char username[20] = {0};
     int dataLen = 0;
     train_t data;
@@ -69,13 +64,29 @@ label:
             recv(sockfd,request,dataLen,0);
             recv(sockfd,&dataLen,4,0);
             recv(sockfd,username,dataLen,0);
-            strcpy(*name,username);
-            db_insert_userRequest(username,request);
-            char rootname[MAXSIZE] = {0};
-            char prootname[MAXSIZE] = {0};
+            strcpy(name,username);
+            char token[100]={0};
+            char enrolltime[50] = {0};
+            time_t nowtime;
+            nowtime = time(NULL);
+            struct tm *Local ;
+            Local = localtime(&nowtime);
+            strftime(enrolltime,50,"%Y-%m-%d %H:%M:%S",Local);
+            char salt[50] = {0};
+            GenerateStr(salt);
+            char usrtime[100] = {0};
+            strcpy(usrtime,username);
+            strcat(usrtime,enrolltime);
+            printf("%s\n",usrtime);
+            strcpy(token,crypt(usrtime,salt));
+            printf("%s\n",token);
+            train_t tokendata;
+            tokendata.dataLen = strlen(token);
+            strcpy(tokendata.buf,token);
+            send(sockfd,&tokendata,4+tokendata.dataLen,0);
+            db_insert_userRequest(username,request,enrolltime,token);
             int rootnum = 0;
-            rootnum = db_numquery_userPath(0,rootname,prootname);
-            send(sockfd,&rootnum,4,0);
+            rootnum = db_numquery_userPath(0,NULL,NULL);
             *dirnum = rootnum;
         }else{
             recv(sockfd,&sig,4,0);
