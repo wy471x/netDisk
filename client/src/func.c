@@ -142,7 +142,6 @@ void puts_t(void* args){
     int socketFd;
     pNode_t conn = (pNode_t)args;
     socketFd = socket(AF_INET,SOCK_STREAM,0);
-    printf("socketFd = %d\n",socketFd);
     struct sockaddr_in serAddr;
     bzero(&serAddr,sizeof(serAddr));
     serAddr.sin_family = AF_INET;
@@ -169,7 +168,6 @@ void puts_t(void* args){
     //传输MD5值
     char md5str[50] = {0};
     Compute_file_md5(conn->filename,md5str);
-    printf("%s\n",md5str);
     train_t md5;
     md5.dataLen = strlen(md5str);
     strcpy(md5.buf,md5str);
@@ -191,9 +189,13 @@ void puts_t(void* args){
         if(buf.st_size >= 1073741824){
             char *pMap = (char*)mmap(NULL,buf.st_size,PROT_READ,MAP_SHARED,fd,0);
             send(socketFd,pMap,buf.st_size,0);
-        }else{
+            close(fd);
+        }
+        else
+        {
             while((filedata.dataLen = read(fd,filedata.buf,sizeof(filedata.buf))))
             {
+                printf("%d\n",filedata.dataLen);
                 ret = send(socketFd,&filedata,4 + filedata.dataLen,0);
                 if(-1 == ret)
                 {
@@ -205,9 +207,10 @@ end:
             close(fd);
         }
 
-        printf("upload success!\n");
         char isExist[30] = {0};
-        recv(socketFd,isExist,sizeof(isExist),0);
+        int dataLen;
+        recv(socketFd,&dataLen,4,0);
+        recv(socketFd,isExist,dataLen,0);
         if( strcmp(isExist,"E") == 0){
             printf("filename existed!\n");
             char newfile[30];
@@ -217,7 +220,7 @@ end:
             strcpy(newfname.buf,newfile);
             send(socketFd,&newfname,4 + newfname.dataLen,0);
         }
-    
+
     }else{
         train_t filedata;
         filedata.dataLen =  strlen(conn->filename);
@@ -228,20 +231,17 @@ end:
 }
 int recvCycle(int sfd,void* pStart,int recvLen){
     char *p = (char*)pStart;
-    int total;
+    int total = 0;
     int ret;
     while(total < recvLen){
         ret = recv(sfd,p+total,recvLen-total,0);
         total = total + ret;
-        printf("%5.2f%%\r",(double)total/recvLen * 100);
-        fflush(stdout);
     }
-    printf("\n");
     return 0;
 }
 //对应于gets命令的线程函数,主要是处理下载
 void gets_t(void* args){
-    connectargs_t* conn = (connectargs_t*) args;
+    pNode_t conn = (pNode_t) args;
     int socketFd;
     socketFd = socket(AF_INET,SOCK_STREAM,0);
     struct sockaddr_in serAddr;
@@ -250,7 +250,10 @@ void gets_t(void* args){
     serAddr.sin_port = htons(conn->port);
     serAddr.sin_addr.s_addr = inet_addr(conn->ip);
     connect(socketFd,(struct sockaddr*)&serAddr,sizeof(serAddr));
-    send(socketFd,"R",1,0);
+    train_t data;
+    data.dataLen = strlen("R");
+    strcpy(data.buf,"R");
+    send(socketFd,&data,4 + data.dataLen,0);
     //token值传回服务器端进行验证
     train_t tokendata;
     tokendata.dataLen = strlen(conn->token);
@@ -269,26 +272,50 @@ void gets_t(void* args){
     strcpy(curdir.buf,curdirnum);
     send(socketFd,&curdir,4 + curdir.dataLen,0);
     char answer[30] = {0};
-    recv(socketFd,answer,sizeof(answer),0);
+    int dataLen;
+    recv(socketFd,&dataLen,4,0);
+    recv(socketFd,answer,dataLen,0);
+    printf("%s\n",answer);
     if(strcmp(answer,"No such file!") == 0){
         printf("%s\n",answer);
     }else{
-        int dataLen;
-        char buf[1000] = {0};
-        //文件接收
-        recv(socketFd,&dataLen,4,MSG_WAITALL);
-        recv(socketFd,buf,dataLen,MSG_WAITALL);
-        off_t filesize;
-        recv(socketFd,&dataLen,4,MSG_WAITALL);
-        recv(socketFd,&filesize,dataLen,MSG_WAITALL);
+        //接收文件大小
+        off_t  filesize;
+        recv(socketFd,&dataLen,4,0);
+        recv(socketFd,&filesize,dataLen,0);
         printf("filesize=%ld\n",filesize);
-        int fd;
-        fd = open(buf,O_RDWR|O_CREAT,0666);
-        ftruncate(fd,filesize);
-        char *pMap=(char*)mmap(NULL,filesize,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-        recvCycle(socketFd,pMap,filesize);
-        munmap(pMap,filesize);
-        close(fd);
+        //mmap技术接收文件
+        if(filesize >= 1073741824){
+            int fd;
+            fd = open(conn->filename,O_RDWR|O_CREAT,0666);
+            ftruncate(fd,filesize);
+            char *pMap=(char*)mmap(NULL,filesize,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+            ERROR_CHECK(pMap,(char*)-1,"mmap");
+            recv_file(socketFd,pMap,filesize);
+            munmap(pMap,filesize);
+            printf("100.00%%\n");
+            close(fd);
+        }else{
+            int fd;
+            fd = open(conn->filename,O_WRONLY|O_CREAT,0666);
+            char buf[1000] = {0};
+            int dataLen;//这里的dataLen要重新声明，不能使用外部的dataLen
+            //若使用外部的dataLen会造成接收异常的情况
+            while(1)
+            {
+                    recv_file(socketFd,&dataLen,4);
+                    if(dataLen > 0)
+                    {
+                        recv_file(socketFd,buf,dataLen);
+                        write(fd,buf,dataLen);
+                    }
+                    else
+                    {
+                        break;
+                    }
+            }
+           close(fd);
+        }
     }
     close(socketFd);
 }

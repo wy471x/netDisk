@@ -18,7 +18,6 @@ void cleanup(void *p)
 
 void *threadFunc(void *p)
 {
-    printf("threadFunc!\n");
     pFactory_t pf = (pFactory_t)p;
     pQue_t pq = &pf->que;
     pNode_t pCur;

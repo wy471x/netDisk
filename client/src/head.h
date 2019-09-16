@@ -30,7 +30,7 @@
 #include<sys/epoll.h>
 #include<sys/sendfile.h>
 #include<mysql/mysql.h>
-#define ARGS_CHECK(argc,num){if(argc != num){printf("error args\n"); return -1;}}
-#define ERROR_CHECK(ret,retval,funcName){if(ret == retval){perror(funcName);return -1;}}
-#define THREAD_ERROR_CHECK(ret,funcName){if(ret != 0 ){printf("%s:%s",funcName,strerror(ret));return -1;}}
+#define ARGS_CHECK(argc,num){if(argc != num) {printf("error args\n"); return -1;}}
+#define ERROR_CHECK(ret,retval,funcName) {if(ret == retval){printf("errno=%d\n",errno);perror(funcName);return -1;}}
+#define THREAD_ERROR_CHECK(ret,funcName) {if(ret != 0 ){printf("%s:%s",funcName,strerror(ret));return -1;}}
 #endif

@@ -19,45 +19,61 @@ label:
     recv(fd,command,sizeof(command),0);
     if(strcmp(command,"gets")==0||strcmp(command,"puts") == 0){
     }else {
-         //其他命令的处理
+        //其他命令的处理
     }
 
 }
 //------文件传输-----
 int send_file(int sockfd,char* filename)
 {
+    printf("%s\n",filename);
+    printf("front send_file\n");
     train_t data;
-    int fd = open(filename,O_RDONLY|O_NONBLOCK);
+    int fd;
+    fd = open(filename,O_RDONLY);
     ERROR_CHECK(fd,-1,"open");
     struct stat buf;
     fstat(fd,&buf);
+    //传输文件大小
+    printf("%ld\n",buf.st_size);
     data.dataLen = sizeof(buf.st_size);
     memcpy(data.buf,&buf.st_size,data.dataLen);
-    // printf("%s\n",data.buf);
     send(sockfd,&data,4+data.dataLen,0);
-    struct timeval start,end;
-    gettimeofday(&start,NULL);
-    char *pMap = (char*)mmap(NULL,buf.st_size,PROT_READ,MAP_SHARED,fd,0);
-    send(sockfd,pMap,buf.st_size,0);
-    gettimeofday(&end,NULL);
-    printf("use time = %ld\n",(end.tv_sec - start.tv_sec)*1000000+end.tv_usec - start.tv_usec);
+    int ret;
+    if(buf.st_size >= 1073741824){
+        struct timeval start,end;
+        gettimeofday(&start,NULL);
+        char *pMap = (char*)mmap(NULL,buf.st_size,PROT_READ,MAP_SHARED,fd,0);
+        printf("%s",pMap);
+        send(sockfd,pMap,buf.st_size,0);
+        gettimeofday(&end,NULL);
+        printf("use time = %ld\n",(end.tv_sec - start.tv_sec)*1000000+end.tv_usec - start.tv_usec);
+    }else{
+        while((data.dataLen = read(fd,data.buf,sizeof(data.buf))))
+        {
+            ret = send(sockfd,&data,4 + data.dataLen,0);
+            if(-1 == ret){
+                goto end;
+            }
+        }
+        send(sockfd,&data,4 + data.dataLen,0);
+    }
+end:
     close(fd);
+    printf("back send_file\n");
     return 0;
 }
 //-------文件接收------
 int recv_file(int sockfd,void* pStart,int recvLen){
-    printf("front recv_file\n");
+    printf("recv_file\n");
     char* p =(char*)pStart;
     int total = 0;
     int ret;
     while(total < recvLen)
     {
         ret = recv(sockfd,p + total,recvLen - total,0);
-        // ERROR_CHECK(ret,-1,"recv");
-        printf("%5.2f%%\r",(double)total/recvLen);
         total = total + ret;
     }
-    printf("back recv_file\n");
     return 0;
 }
 //------请求处理函数-----
@@ -79,7 +95,7 @@ void requestDeal(int fd){
     }
     else if(strcmp(request,"R") == 0)
     {
-       deal_download(fd);
+        deal_download(fd);
     }
     printf("end\n");
 }

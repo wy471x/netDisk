@@ -172,9 +172,10 @@ void deal_upload(int socketfd){
     }
     printf("1111\n");
     char fname[30] ={0};
+    //类型要一致才可
     int fsize = 0;
     //当文件名在本目录下不存在且该文件的内容即md5也不存在时
-    if(db_md5query_userPath(md5,fname) < 0)
+    if(db_md5query_userPath(md5,fname,&fsize) < 0)
     {
         printf("222\n");
         send(socketfd,"No",2,0);
@@ -183,42 +184,49 @@ void deal_upload(int socketfd){
         recv(socketfd,filename,dataLen,0);
         printf("%s\n",filename);
         recv(socketfd,&dataLen,4,0);
-        recv(socketfd,&fsize,4,0);
+        recv(socketfd,&fsize,dataLen,0);
         printf("%d\n",fsize);
         //使用mmap技术接收文件内容
         int fd;
-        fd = open(filename,O_RDWR|O_CREAT,0666);
+        fd = open(filename,O_WRONLY|O_CREAT,0666);
         if(fsize >= 1073741824){
-        ftruncate(fd,fsize);
-        char *pMap = (char*)mmap(NULL,fsize,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-        printf("33333\n");
-        recv_file(socketfd,pMap,fsize);
-        printf("mid3333\n");
-        munmap(pMap,fsize);
-        printf("3333\n");
+            ftruncate(fd,fsize);
+            char *pMap = (char*)mmap(NULL,fsize,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+            printf("33333\n");
+            recv_file(socketfd,pMap,fsize);
+            printf("mid3333\n");
+            munmap(pMap,fsize);
+            printf("3333\n");
         }else{
-            int downLoadSize = 0;
             char buf[1000] = {0};
             while(1){
                 recv_file(socketfd,&dataLen,4);
+                printf("%d\n",dataLen);
                 if(dataLen > 0){
-                write(fd,buf,dataLen);
-                downLoadSize += dataLen;
+                    recv_file(socketfd,buf,dataLen);
+                    printf("%s",buf);
+                    write(fd,buf,dataLen);
                 }else{
+                    printf("100.00%%\n");
                     break;
                 }
-        }
+            }
         }
         char pfname[30] = {0};
         db_dirnamequery_userPath(atoi(curdirnum),pfname);
         printf("**%s\n",pfname);
+        train_t buf;
         if(db_fexistquery_userPath(atoi(curdirnum),filename) < 0){
-            send(socketfd,"NE",2,0);
+            buf.dataLen = strlen("NE");
+            strcpy(buf.buf,"NE");
+            send(socketfd,&buf,4 + buf.dataLen,0);
             printf("%d %s %s %s %d %s\n",atoi(curdirnum),filename,pfname,md5,fsize,filename);
             db_allinsert_userPath(atoi(curdirnum),filename,pfname,md5,fsize\
                                   ,filename);
         }else{
-            send(socketfd,"E",1,0);
+            buf.dataLen = strlen("E");
+            strcpy(buf.buf,"E");
+            send(socketfd,&buf,4 + buf.dataLen,0);
             char newfname[20] = {0};
             recv(socketfd,&dataLen,4,0);
             recv(socketfd,newfname,dataLen,0);
@@ -237,7 +245,7 @@ void deal_upload(int socketfd){
             char pfname[30] = {0};
             db_namequery_userPath(atoi(curdirnum),pfname); 
             printf("%d %s %s %s %d %s\n",atoi(curdirnum),fname,pfname,md5,fsize,filename);
-            db_allinsert_userPath(atoi(curdirnum),filename,pfname,md5,fsize\
+            db_allinsert_userPath(atoi(curdirnum),fname,pfname,md5,fsize\
                                   ,filename);
         }
     }
@@ -245,7 +253,6 @@ void deal_upload(int socketfd){
 }
 //----------------------------downloads命令处理-------------------
 void deal_download(int socketfd){
-    printf("newFd = %d\n",socketfd);   
     int dataLen;
     char token[50] = {0};
     recv(socketfd,&dataLen,4,0);
@@ -260,12 +267,19 @@ void deal_download(int socketfd){
     recv(socketfd,&dataLen,4,0);
     recv(socketfd,curdir,dataLen,0);
     char afname[50] = {0};
+    train_t buf;
     if(db_afnamequery_userPath(atoi(curdir),afname,filename) < 0)
     {
-        send(socketfd,"No such file!",strlen("No such file!"),0);
+        buf.dataLen = strlen("No such file!");
+        strcpy(buf.buf,"No such file!");
+        send(socketfd,&buf,4 + buf.dataLen,0);
     }
     else
     {
+        buf.dataLen = strlen("Yes");
+        strcpy(buf.buf,"Yes");
+        send(socketfd,&buf,4 + buf.dataLen,0);
+        printf("%s\n",afname);
         send_file(socketfd,afname);
     }
     close(socketfd);

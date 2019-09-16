@@ -37,7 +37,7 @@ int db_namequery_userPath(int ,char*);
 int db_filequery_userPath(int,char**);
 int db_usernamequery_userRequest(char*);
 int db_fexistquery_userPath(int,char*);
-int db_md5query_userPath(char *md5,char *fname);
+int db_md5query_userPath(char *md5,char *fname,int *);
 int db_dirnamequery_userPath(int curdirnum,char *fname);
 int db_allinsert_userPath(int prenum,char *fname,char *pfname,char *md5,int fsize,char *vfname);
 int db_afnamequery_userPath(int curdirnum,char *fname,char *vfname);

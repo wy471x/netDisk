@@ -91,37 +91,20 @@ label:
         if(strcmp(command.name,"cd") == 0||strcmp(command.name,"ls") == 0||\
            strcmp(command.name,"pwd") == 0)
         {
-           
+
         }
-        if(strcmp(command.name,"puts") == 0)
-        {
-            pNew = (pNode_t)calloc(1,sizeof(Node_t));
-            strcpy(pNew->ip,ip);
-            printf("%s\n",pNew->ip);
-            pNew->port = atoi(port);
-            printf("%d\n",pNew->port);
-            strcpy(pNew->filename,command.argv[1]);
-            printf("%s\n",pNew->filename);
-            pNew->request = 1;
-            pNew->curdirnum = curdirnum;
-            printf("%d\n",pNew->curdirnum);
-            strcpy(pNew->token,token);
-            printf("%s\n",pNew->token);
-            pthread_mutex_lock(&pq->mutex);
-            printf("front mutext\n");
-            queInsert(pq,pNew);
-            printf("back mutex\n");
-            pthread_mutex_unlock(&pq->mutex);
-            pthread_cond_signal(&threadMainData.cond);
-            printf("puts\n");
-        }
-        if(strcmp(command.name,"gets") == 0)
+        if(strcmp(command.name,"puts") == 0||strcmp(command.name,"gets") == 0)
         {
             pNew = (pNode_t)calloc(1,sizeof(Node_t));
             strcpy(pNew->ip,ip);
             pNew->port = atoi(port);
             strcpy(pNew->filename,command.argv[1]);
-            pNew->request = 0;
+            if(strcmp(command.name,"puts") == 0)
+            {
+                pNew->request = 1;
+            }else{
+                pNew->request = 0;
+            }
             pNew->curdirnum = curdirnum;
             strcpy(pNew->token,token);
             pthread_mutex_lock(&pq->mutex);

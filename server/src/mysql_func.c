@@ -493,7 +493,7 @@ int db_fexistquery_userPath(int dirnum,char *fname){
     return 0;
 }
 //-----------------------查询服务器上的是否存在md5的文件------------------ 
-int db_md5query_userPath(char *md5,char *fname){
+int db_md5query_userPath(char *md5,char *fname,int *fsize){
     MYSQL *conn = NULL;
     MYSQL_RES *res = NULL;
     MYSQL_ROW row = NULL;
@@ -502,7 +502,7 @@ int db_md5query_userPath(char *md5,char *fname){
     char* password="123";
     char* database="infor_netdisk";//要访问的数据库名称
     char query[300]={0};
-    sprintf(query,"select fname from user_path where md5 like '%s'\
+    sprintf(query,"select fname ,fsize from user_path where md5 like '%s'\
             limit 1",md5);
     unsigned int t;
     conn=mysql_init(NULL);
@@ -526,11 +526,17 @@ int db_md5query_userPath(char *md5,char *fname){
                 {
                     for(t=0;t<mysql_num_fields(res);t++)
                     {
+                        if(0 == t)
+                        {
                            strncpy(fname,row[t],strlen(row[t]));
-                    }
+                                       
+                        }else{
+                            *fsize = atoi(row[t]);
+                        }
                  
                 }
-             }else {
+             }
+            }else {
                 return -1;          
             }
         }else{
